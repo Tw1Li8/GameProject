@@ -127,9 +127,22 @@ void Update(GameContext* ctx)
 // Render
 //////////////////////////////////////////////////////////////
 
+// 콘솔 커서를 (0,0) 위치로 이동시키는 함수
+void MoveConsoleCursor()
+{
+    COORD coord;
+    coord.X = 0;  // X 위치 (왼쪽)
+    coord.Y = 0;  // Y 위치 (위쪽)
+
+    SetConsoleCursorPosition(
+        GetStdHandle(STD_OUTPUT_HANDLE),
+        coord
+    );
+}//system("cls"); 때문에 게속 플리커 문제가 생겨서 콘솔 커서를 (0,0) 위치로 이동시키는 함수로 대체했습니다.
+
 void Render(GameContext* ctx, int vertexCount)
 {
-    system("cls");
+    MoveConsoleCursor();
 
     printf("========== GAME SCREEN ==========\n");
     printf(" Player Position: %d\n", ctx->playerPos);
@@ -451,6 +464,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
             ProcessInput(&game);
             Update(&game);
             Render(&game, vertexCount);
+
+            Sleep(50);
         }
     }
 
