@@ -1,32 +1,45 @@
+//////////////////////////////////////////////////////////////
+// 전처리 과정
+//////////////////////////////////////////////////////////////
+
 #pragma comment(linker, "/entry:WinMainCRTStartup /subsystem:windows")
+// Windows 애플리케이션의 진입점을 WinMain으로 설정하고, 콘솔 창이 나타나지 않도록 
 
-#include <windows.h>
-#include <d3d11.h>
-#include <d3dcompiler.h>
-#include <DirectXMath.h>
-#include <cstring>
-#include <cstdio>
+#include <windows.h>// Windows API 헤더 파일을 포함합니다.
+#include <d3d11.h>// DirectX 11 헤더 파일을 포함합니다.
+#include <d3dcompiler.h>// 셰이더 컴파일을 위한 헤더 파일을 포함합니다.
+#include <DirectXMath.h>// DirectXMath 라이브러리를 포함하여 수학 관련 기능을 사용할 수 있도록 합니다.
+#include <cstring>// C 스타일 문자열 함수를 사용하기 위한 헤더 파일을 포함합니다.
+#include <cstdio>// C 스타일 입출력을 위한 헤더 파일을 포함합니다.
 
-#pragma comment(lib,"d3d11.lib")
-#pragma comment(lib,"d3dcompiler.lib")
+#pragma comment(lib,"d3d11.lib")// DirectX 11 라이브러리를 링크합니다.
+#pragma comment(lib,"d3dcompiler.lib")// D3DCompiler 라이브러리를 링크합니다.
 
-using namespace DirectX;
+using namespace DirectX; // DirectXMath 라이브러리의 기능을 사용하기 위해 네임스페이스를 선언합니다.
+
 
 //////////////////////////////////////////////////////////////
 // DirectX 전역 변수
 //////////////////////////////////////////////////////////////
 
-ID3D11Device* device = nullptr;
-ID3D11DeviceContext* context = nullptr;
-IDXGISwapChain* swapChain = nullptr;
+ID3D11Device* device = nullptr; // DirectX 11 디바이스 인터페이스 포인터
+ID3D11DeviceContext* context = nullptr; 
+// DirectX 11 디바이스 컨텍스트 인터페이스 포인터, 렌더링 명령을 실행하는 데 사용됩니다.
+IDXGISwapChain* swapChain = nullptr; 
+// DirectX 11 스왑 체인 인터페이스 포인터, 화면에 렌더링된 이미지를 표시하는 데 사용
 ID3D11RenderTargetView* rtv = nullptr;
+// DirectX 11 렌더 타겟 뷰 인터페이스 포인터, 렌더링 대상인 백 버퍼를 나타냅니다.
 
-ID3D11VertexShader* vs = nullptr;
-ID3D11PixelShader* ps = nullptr;
+ID3D11VertexShader* vs = nullptr; // DirectX 11 버텍스 셰이더 인터페이스 포인터
+ID3D11PixelShader* ps = nullptr; // DirectX 11 픽셀 셰이더 인터페이스 포인터
 
-ID3D11Buffer* vertexBuffer = nullptr;
+ID3D11Buffer* vertexBuffer = nullptr; 
+// DirectX 11 버퍼 인터페이스 포인터입니다. 정점 데이터를 저장하는 버퍼
 ID3D11Buffer* constantBuffer = nullptr;
+// DirectX 11 버퍼 인터페이스 포인터입니다. 렌더링값이 변경됨을 셰이더에 전달하는 상수 버퍼
+
 ID3D11InputLayout* inputLayout = nullptr;
+// DirectX 11 입력 레이아웃 인터페이스 포인터입니다. 정점 데이터의 형식을 정의하는 데 사용됩니다.
 
 //////////////////////////////////////////////////////////////
 // 게임 상태
@@ -39,9 +52,9 @@ struct GameContext
 
     int keyLeft;
     int keyRight;
-};
+}; // 플레이어의 위치, 게임이 실행 중인지 여부, 왼쪽 및 오른쪽 키 입력 상태를 저장하는 구조체입니다.
 
-GameContext game = { 5,1,0,0 };
+GameContext game = { 5,1,0,0 };// 기본값으로 초기화 합니다
 
 //////////////////////////////////////////////////////////////
 // 정점 구조체
@@ -60,7 +73,10 @@ struct Vertex
 struct ConstantBuffer
 {
     XMMATRIX world;
-};
+};// 전체를 한꺼번에 이동시킬 행렬을 저장하는 구조체입니다.
+//구체적으로 world 행렬은 정점의 위치를 변환하는 데 사용됩니다. 
+// 예를 들어, 플레이어의 위치에 따라 world 행렬을 업데이트하여 정점이 화면에서 이동하도록 할 수 있습니다.
+
 
 //////////////////////////////////////////////////////////////
 // 셰이더
@@ -68,29 +84,31 @@ struct ConstantBuffer
 
 const char* shader = R"(
 
-cbuffer ConstantBuffer : register(b0)
+cbuffer ConstantBuffer : register(b0) 
+//컨테이너블 버퍼 선언, b0 레지스터에 바인딩됩니다. 아까 생성한 constantBuffer와 연결됩니다.
 {
     matrix world;
 };
 
-struct VS_INPUT
+struct VS_INPUT // 버텍스 셰이더의 입력 구조체입니다. 정점의 위치와 색상을 포함합니다.
 {
     float3 pos : POSITION;
     float4 col : COLOR;
 };
 
-struct PS_INPUT
+struct PS_INPUT // 픽셀 셰이더의 입력 구조체입니다. 버텍스 셰이더에서 출력된 위치와 색상을 포함합니다.
 {
     float4 pos : SV_POSITION;
     float4 col : COLOR;
 };
 
+
 PS_INPUT VS(VS_INPUT input)
 {
     PS_INPUT output;
 
-    output.pos = mul(float4(input.pos,1), world);
-    output.col = input.col;
+    output.pos = mul(float4(input.pos,1), world); // 입력된 정점 위치에 world 행렬을 곱하여 변환된 위치를 계산합니다.
+    output.col = input.col; // 입력된 정점 색상을 그대로 출력으로 전달합니다.
 
     return output;
 }
@@ -114,7 +132,7 @@ void ProcessInput(GameContext* ctx)
 // Update
 //////////////////////////////////////////////////////////////
 
-void Update(GameContext* ctx)
+void Update(GameContext* ctx) 
 {
     if (ctx->keyLeft) ctx->playerPos--;
     if (ctx->keyRight) ctx->playerPos++;
@@ -138,7 +156,7 @@ void MoveConsoleCursor()
         GetStdHandle(STD_OUTPUT_HANDLE),
         coord
     );
-}//system("cls"); 때문에 게속 플리커 문제가 생겨서 콘솔 커서를 (0,0) 위치로 이동시키는 함수로 대체했습니다.
+} //system("cls"); 때문에 게속 플리커 문제가 생겨서 콘솔 커서를 (0,0) 위치로 이동시키는 함수로 대체했습니다.
 
 void Render(GameContext* ctx, int vertexCount)
 {
@@ -157,17 +175,25 @@ void Render(GameContext* ctx, int vertexCount)
     }
 
     printf("]\n");
-    printf("=================================\n");
+	printf("A : Left_Move , D : Right_Move , Q : Game_Set \n");
+    printf("==============================================\n");
 
-    float color[] = { 0.1f,0.2f,0.3f,1 };
+	float color[] = { 1.0f,1.0f,1.0f,1 };
+    // 배경색을 설정하는 배열입니다. RGBA 형식
 
-    context->ClearRenderTargetView(rtv, color);
-    context->OMSetRenderTargets(1, &rtv, nullptr);
+	context->ClearRenderTargetView(rtv, color);
+    // 렌더 타겟 뷰를 지정된 색상으로 지웁니다. 배경색을 설정하는 역할을 합니다.
+	context->OMSetRenderTargets(1, &rtv, nullptr);
+    // 렌더 타겟 뷰를 출력 대상으로 설정합니다. 렌더링된 이미지가 이 뷰에 그려지게 됩니다.
 
-    UINT stride = sizeof(Vertex);
-    UINT offset = 0;
+	UINT stride = sizeof(Vertex);
+    // 정점 버퍼에서 각 정점의 크기를 나타내는 변수입니다. Vertex 구조체의 크기와 일치해야 합니다.
+	
+    UINT offset = 0; 
+    // 정점 버퍼에서 데이터를 읽기 시작할 위치를 나타내는 변수입니다. 일반적으로 0으로 설정됩니다.
 
     context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+
     context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     context->VSSetShader(vs, nullptr, 0);
@@ -194,14 +220,15 @@ void Render(GameContext* ctx, int vertexCount)
 //////////////////////////////////////////////////////////////
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+//InPut과 Update에서 게임 상태를 변경하는 키 입력을 처리하기 위해 WndProc 함수에서 WM_KEYDOWN과 WM_KEYUP 메시지를 처리
 {
     switch (msg)
     {
 
     case WM_KEYDOWN:
 
-        if (wParam == VK_LEFT) game.keyLeft = 1;
-        if (wParam == VK_RIGHT) game.keyRight = 1;
+        if (wParam == VK_LEFT || wParam == 'A') game.keyLeft = 1;
+        if (wParam == VK_RIGHT || wParam == 'D') game.keyRight = 1;
 
         if (wParam == 'Q')
             game.isRunning = 0;
@@ -210,8 +237,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
     case WM_KEYUP:
 
-        if (wParam == VK_LEFT) game.keyLeft = 0;
-        if (wParam == VK_RIGHT) game.keyRight = 0;
+        if (wParam == VK_LEFT || wParam == 'A') game.keyLeft = 0;
+        if (wParam == VK_RIGHT || wParam == 'D') game.keyRight = 0;
 
         break;
 
@@ -234,24 +261,29 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
     //////////////////////////////////////////////////////////////
     // Window 생성
     //////////////////////////////////////////////////////////////
-    AllocConsole();
+	AllocConsole();// 콘솔 창을 할당하여 디버깅 출력을 사용할 수 있도록 합니다.
 
     FILE* fp;
 
-    freopen_s(&fp, "CONOUT$", "w", stdout);
-    freopen_s(&fp, "CONIN$", "r", stdin);
+	freopen_s(&fp, "CONOUT$", "w", stdout);// 콘솔 창의 표준 출력과 연결하여 printf를 사용할 수 있도록 합니다.
+	freopen_s(&fp, "CONIN$", "r", stdin);// 콘솔 창의 표준 출력과 입력을 연결하여 printf와 scanf를 사용할 수 있도록 합니다.
 
     WNDCLASSEX wc = { sizeof(WNDCLASSEX) };
 
-    wc.lpfnWndProc = WndProc;
+	wc.lpfnWndProc = WndProc;
+    // 창 메시지를 처리하는 함수 포인터를 설정합니다. WndProc 함수가 창 메시지를 처리하게 됩니다.
+    
     wc.hInstance = hInst;
+	// 창 클래스의 인스턴스 핸들을 설정합니다. WinMain 함수의 hInst 매개변수를 사용하여 현재 애플리케이션의 인스턴스 핸들을 전달합니다.
+	//이 창에서 키보드를 누르거나 마우스 클릭이 발생하면, 그 신호를 우리가 만든 WndProc(접수처) 함수로 보내라는 의미
+   
     wc.lpszClassName = L"DXWindow";
-
+	// 창 클래스의 이름을 설정합니다. 이 이름은 CreateWindow 함수에서 창을 생성할 때 사용됩니다.
     RegisterClassEx(&wc);
 
     HWND hwnd = CreateWindow(
         L"DXWindow",
-        L"DirectX Game",
+        L"Oh my Israel",
         WS_OVERLAPPEDWINDOW,
         100, 100, 800, 600,
         nullptr, nullptr, hInst, nullptr
@@ -263,10 +295,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
     // DirectX 초기화
     //////////////////////////////////////////////////////////////
 
-    DXGI_SWAP_CHAIN_DESC sd = {};
+	DXGI_SWAP_CHAIN_DESC sd = {};
+    // 스왑 체인 설명 구조체를 초기화합니다.
 
-    sd.BufferCount = 1;
-    sd.BufferDesc.Width = 800;
+	sd.BufferCount = 1;
+    sd.BufferDesc.Width = 800; 
     sd.BufferDesc.Height = 600;
     sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 
@@ -295,10 +328,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
     // Render Target
     //////////////////////////////////////////////////////////////
 
-    ID3D11Texture2D* backBuffer;
+	ID3D11Texture2D* backBuffer;
+    // 백 버퍼 텍스처 인터페이스 포인터입니다. 스왑 체인의 백 버퍼를 나타냅니다.
 
     swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer);
+	// 스왑 체인의 첫 번째 버퍼(백 버퍼)를 가져와 backBuffer 인터페이스 포인터에 저장합니다.
+
     device->CreateRenderTargetView(backBuffer, nullptr, &rtv);
+	// 백 버퍼 텍스처를 렌더 타겟 뷰로 생성하여 rtv 인터페이스 포인터에 저장합니다. 
+    // 이렇게 하면 렌더링된 이미지가 백 버퍼에 그려지게 됩니다.
+    
     backBuffer->Release();
 
     //////////////////////////////////////////////////////////////
@@ -322,7 +361,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
     ID3DBlob* psBlob;
 
     D3DCompile(shader, strlen(shader), nullptr, nullptr, nullptr,
-        "VS", "vs_4_0", 0, 0, &vsBlob, nullptr);
+		"VS", "vs_4_0", 0, 0, &vsBlob, nullptr);
+    // 셰이더 코드를 컴파일하여 버텍스 셰이더 블롭을 생성합니다. "VS"는 셰이더 코드에서 버텍스 셰이더 함수의 이름입니다.
 
     D3DCompile(shader, strlen(shader), nullptr, nullptr, nullptr,
         "PS", "ps_4_0", 0, 0, &psBlob, nullptr);
@@ -344,14 +384,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
 
         {"COLOR",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,12,
         D3D11_INPUT_PER_VERTEX_DATA,0}
-    };
+	};// 정점 데이터의 형식을 정의하는 입력 요소 설명 배열입니다. POSITION과 COLOR 요소를 정의합니다.
 
     device->CreateInputLayout(
         layout, 2,
-        vsBlob->GetBufferPointer(),
-        vsBlob->GetBufferSize(),
-        &inputLayout
-    );
+		vsBlob->GetBufferPointer(),// 버텍스 셰이더의 컴파일된 코드에서 입력 레이아웃을 생성합니다.
+		vsBlob->GetBufferSize(),// 버텍스 셰이더의 컴파일된 코드의 크기를 전달하여 입력 레이아웃을 생성합니다.
+		&inputLayout// 입력 레이아웃 인터페이스 포인터에 생성된 입력 레이아웃을 저장합니다.
+	);
+    // 정점 데이터의 형식을 정의하는 입력 레이아웃을 생성
 
     context->IASetInputLayout(inputLayout);
 
@@ -398,27 +439,27 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
         //중앙 육각형 구현
         {  0.0f, 0.0f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },
         { -0.12f, 0.22f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },
-        { 0.12f, 0.22f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f }, //위쪽
+        { 0.12f, 0.22f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f }, //중앙 상단
 
         {  0.24f, 0.0f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },
         {  0.0f, 0.0f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },
-        { 0.12f, 0.22f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },//오른쪽
+        { 0.12f, 0.22f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },//우상단
 
         {  -0.12f, 0.22f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },
         {  0.0f, 0.0f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },
-        { -0.24f, 0.0f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },//왼쪽
+        { -0.24f, 0.0f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },//좌상단
 
         {  0.12f, -0.22f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },
         { -0.12f, -0.22f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },
-        { 0.0f, 0.0f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f }, //아래쪽
+        { 0.0f, 0.0f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f }, //중앙 하단
 
         { 0.12f, -0.22f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },
         {  0.0f, 0.0f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },
-        { 0.24f, 0.0f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },//오른아래쪽
+        { 0.24f, 0.0f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },//우하단
 
         {  -0.24f, 0.0f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },
         {  0.0f, 0.0f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },
-        { -0.12f, -0.22f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },//왼쪽
+        { -0.12f, -0.22f, 0.49f, 1.0f, 1.0f, 1.0f, 1.0f },//좌하단
     };
 
     int vertexCount = sizeof(vertices) / sizeof(Vertex);
@@ -427,24 +468,25 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
     // VertexBuffer 생성
     //////////////////////////////////////////////////////////////
 
-    D3D11_BUFFER_DESC bd = {};
-    bd.ByteWidth = sizeof(vertices);
-    bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	D3D11_BUFFER_DESC bd = {};// 버텍스 버퍼 설명 구조체를 초기화합니다.
+	bd.ByteWidth = sizeof(vertices);// 버텍스 버퍼의 크기를 설정합니다. vertices 배열의 크기와 일치해야 합니다.
+    bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;// 버텍스 버퍼로 사용할 수 있도록 바인드 플래그를 설정합니다.
 
     D3D11_SUBRESOURCE_DATA initData = {};
     initData.pSysMem = vertices;
 
-    device->CreateBuffer(&bd, &initData, &vertexBuffer);
+	device->CreateBuffer(&bd, &initData, &vertexBuffer);// 정점 데이터를 GPU에 업로드하여 사용할 수 있도록 버텍스 버퍼를 생성합니다.
 
     //////////////////////////////////////////////////////////////
     // ConstantBuffer 생성
     //////////////////////////////////////////////////////////////
 
-    D3D11_BUFFER_DESC cbd = {};
-    cbd.ByteWidth = sizeof(ConstantBuffer);
-    cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	D3D11_BUFFER_DESC cbd = {};// 상수 버퍼 설명 구조체를 초기화합니다.
+	cbd.ByteWidth = sizeof(ConstantBuffer); // 상수 버퍼의 크기를 설정합니다. ConstantBuffer 구조체의 크기와 일치해야 합니다.
+	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;// 상수 버퍼로 사용할 수 있도록 바인드 플래그를 설정합니다.
 
-    device->CreateBuffer(&cbd, nullptr, &constantBuffer);
+	device->CreateBuffer(&cbd, nullptr, &constantBuffer);
+    // 상수 버퍼를 생성하여 constantBuffer 인터페이스 포인터에 저장합니다. 초기 데이터는 nullptr로 설정하여 나중에 업데이트할 수 있도록 합니다.
 
     //////////////////////////////////////////////////////////////
     // 게임 루프
@@ -454,11 +496,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
 
     while (game.isRunning)
     {
-        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))//메시지 큐에서 메시지 확인하고 처리.
         {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+			TranslateMessage(&msg);// 키보드 입력과 같은 메시지를 번역하여 WM_CHAR 메시지로 변환합니다.
+			DispatchMessage(&msg);// 메시지를 해당 창의 WndProc 함수로 전달하여 처리합니다.
         }
+
         else
         {
             ProcessInput(&game);
@@ -466,8 +509,22 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
             Render(&game, vertexCount);
 
             Sleep(50);
-        }
+		}// 게임이 실행 중인 동안 메시지를 처리하고, 입력을 처리하고, 게임 상태를 업데이트하며, 화면을 렌더링하는 루프
     }
+    if (vsBlob) vsBlob->Release();
+    if (psBlob) psBlob->Release();
+
+    if (vertexBuffer) vertexBuffer->Release();
+    if (constantBuffer) constantBuffer->Release();
+    if (inputLayout) inputLayout->Release();
+    if (vs) vs->Release();
+    if (ps) ps->Release();
+
+    if (rtv) rtv->Release();
+    if (swapChain) swapChain->Release();
+    if (context) context->Release();
+    if (device) device->Release();
+	// DirectX 리소스를 해제하여 메모리 누수를 방지합니다.
 
     return 0;
 }
