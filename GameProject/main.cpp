@@ -6,40 +6,11 @@
 // Windows 애플리케이션의 진입점을 WinMain으로 설정하고, 콘솔 창이 나타나지 않도록 
 
 #include <windows.h>// Windows API 헤더 파일을 포함합니다.
-#include <d3d11.h>// DirectX 11 헤더 파일을 포함합니다.
-#include <d3dcompiler.h>// 셰이더 컴파일을 위한 헤더 파일을 포함합니다.
-#include <DirectXMath.h>// DirectXMath 라이브러리를 포함하여 수학 관련 기능을 사용할 수 있도록 합니다.
+#include "DirectXBundle.h"// DirectX 관련 전역 변수와 헤더 파일을 포함합니다.
 #include <cstring>// C 스타일 문자열 함수를 사용하기 위한 헤더 파일을 포함합니다.
 #include <cstdio>// C 스타일 입출력을 위한 헤더 파일을 포함합니다.
-
-#pragma comment(lib,"d3d11.lib")// DirectX 11 라이브러리를 링크합니다.
-#pragma comment(lib,"d3dcompiler.lib")// D3DCompiler 라이브러리를 링크합니다.
-
-using namespace DirectX; // DirectXMath 라이브러리의 기능을 사용하기 위해 네임스페이스를 선언합니다.
-
-
-//////////////////////////////////////////////////////////////
-// DirectX 전역 변수
-//////////////////////////////////////////////////////////////
-
-ID3D11Device* device = nullptr; // DirectX 11 디바이스 인터페이스 포인터
-ID3D11DeviceContext* context = nullptr; 
-// DirectX 11 디바이스 컨텍스트 인터페이스 포인터, 렌더링 명령을 실행하는 데 사용됩니다.
-IDXGISwapChain* swapChain = nullptr; 
-// DirectX 11 스왑 체인 인터페이스 포인터, 화면에 렌더링된 이미지를 표시하는 데 사용
-ID3D11RenderTargetView* rtv = nullptr;
-// DirectX 11 렌더 타겟 뷰 인터페이스 포인터, 렌더링 대상인 백 버퍼를 나타냅니다.
-
-ID3D11VertexShader* vs = nullptr; // DirectX 11 버텍스 셰이더 인터페이스 포인터
-ID3D11PixelShader* ps = nullptr; // DirectX 11 픽셀 셰이더 인터페이스 포인터
-
-ID3D11Buffer* vertexBuffer = nullptr; 
-// DirectX 11 버퍼 인터페이스 포인터입니다. 정점 데이터를 저장하는 버퍼
-ID3D11Buffer* constantBuffer = nullptr;
-// DirectX 11 버퍼 인터페이스 포인터입니다. 렌더링값이 변경됨을 셰이더에 전달하는 상수 버퍼
-
-ID3D11InputLayout* inputLayout = nullptr;
-// DirectX 11 입력 레이아웃 인터페이스 포인터입니다. 정점 데이터의 형식을 정의하는 데 사용됩니다.
+#include <chrono>
+#include <thread>
 
 //////////////////////////////////////////////////////////////
 // 게임 상태
@@ -132,7 +103,7 @@ void ProcessInput(GameContext* ctx)
 // Update
 //////////////////////////////////////////////////////////////
 
-void Update(GameContext* ctx) 
+void Update(GameContext* ctx)
 {
     if (ctx->keyLeft) ctx->playerPos--;
     if (ctx->keyRight) ctx->playerPos++;
@@ -158,7 +129,7 @@ void MoveConsoleCursor()
     );
 } //system("cls"); 때문에 게속 플리커 문제가 생겨서 콘솔 커서를 (0,0) 위치로 이동시키는 함수로 대체했습니다.
 
-void Render(GameContext* ctx, int vertexCount)
+void Render(GameContext* ctx, int vertexCount, float dt) 
 {
     MoveConsoleCursor();
 
@@ -176,6 +147,8 @@ void Render(GameContext* ctx, int vertexCount)
 
     printf("]\n");
 	printf("A : Left_Move , D : Right_Move , Q : Game_Set \n");
+    printf("FPS : %.1f, (DT : %.4f)\n",1.0f/dt,dt);
+
     printf("==============================================\n");
 
 	float color[] = { 1.0f,1.0f,1.0f,1 };
@@ -199,20 +172,23 @@ void Render(GameContext* ctx, int vertexCount)
     context->VSSetShader(vs, nullptr, 0);
     context->PSSetShader(ps, nullptr, 0);
 
-    float playerX = (ctx->playerPos - 5) * 0.15f;
+	float playerX = (ctx->playerPos - 5) * 0.15f;// P(플레이어)의 X 위치를 계산합니다. playerPos 값에 따라 -0.75에서 0.75 사이의 값을 가지게 됩니다.
 
     XMMATRIX translation =
-        XMMatrixTranslation(playerX, 0, 0);
+		XMMatrixTranslation(playerX, 0, 0); 
+    // XMMATRIX 타입의 translation 행렬을 생성하여 플레이어의 X 위치에 따라 정점을 이동시킵니다. 
+	// 좌우로만 움직이기 때문에 Y와 Z 위치는 0으로 유지
 
     ConstantBuffer cb;
     cb.world = XMMatrixTranspose(translation);
+	// world 행렬을 업데이트하여 플레이어의 위치에 따라 정점이 이동하도록 합니다. XMMatrixTranspose 함수를 사용하여 행렬 전체를 한꺼번에 이동시킵니다.
 
-    context->UpdateSubresource(constantBuffer, 0, nullptr, &cb, 0, 0);
-    context->VSSetConstantBuffers(0, 1, &constantBuffer);
+	context->UpdateSubresource(constantBuffer, 0, nullptr, &cb, 0, 0);// 상수 버퍼의 내용을 업데이트하여 셰이더에 전달, 상수버퍼에 이동된 world 행렬을 업데이트하여 셰이더에서 사용할 수 있도록 함.
+	context->VSSetConstantBuffers(0, 1, &constantBuffer);// 버텍스 셰이더에 상수 버퍼를 바인딩하여 셰이더에서 사용할 수 있도록 합니다.
 
     context->Draw(vertexCount, 0);
 
-    swapChain->Present(1, 0);
+	swapChain->Present(0, 0);// 스왑 체인을 프레젠트하여 렌더링된 이미지를 화면에 표시합니다. 1은 수직 동기화 옵션을 나타냅니다.
 }
 
 //////////////////////////////////////////////////////////////
@@ -221,13 +197,14 @@ void Render(GameContext* ctx, int vertexCount)
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 //InPut과 Update에서 게임 상태를 변경하는 키 입력을 처리하기 위해 WndProc 함수에서 WM_KEYDOWN과 WM_KEYUP 메시지를 처리
+//콜백
 {
     switch (msg)
     {
 
     case WM_KEYDOWN:
 
-        if (wParam == VK_LEFT || wParam == 'A') game.keyLeft = 1;
+		if (wParam == VK_LEFT || wParam == 'A') game.keyLeft = 1;
         if (wParam == VK_RIGHT || wParam == 'D') game.keyRight = 1;
 
         if (wParam == 'Q')
@@ -250,6 +227,32 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
     return DefWindowProc(hwnd, msg, wParam, lParam);
 }
+
+/////////////////////////////////////////////////////////////
+  // DeltaTime 계산 추가
+  ////////////////////////////////////////////////////////////
+class DeltaTime
+{
+public:
+    DeltaTime()
+    {
+        preTime = std::chrono::steady_clock::now();
+        deltaTime = 0.0f;
+    }
+    float GetDeltaTime()
+    {
+        auto currentTime = std::chrono::steady_clock::now();
+        deltaTime = std::chrono::duration<float>(currentTime - preTime).count();
+        //  현재 시간과 이전 시간의 차이를 계산하여 deltaTime을 업데이트합니다. 그리고 현재 시간을 이전 시간으로 저장하여 다음 프레임에서 사용할 수 있도록 합니다.
+        preTime = currentTime;
+        //현재 시간을 이전 시간으로 저장하여 다음 프레임에서 사용할 수 있도록 합니다.
+        return deltaTime;
+    }
+private:
+    std::chrono::steady_clock::time_point preTime;
+    float deltaTime;
+};
+
 
 //////////////////////////////////////////////////////////////
 // WinMain
@@ -350,8 +353,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
     vp.Height = 600;
     vp.MinDepth = 0;
     vp.MaxDepth = 1;
-
-    context->RSSetViewports(1, &vp);
+ 
+    // 뷰포트는 렌더링된 이미지가 화면에 어떻게 매핑되는지를 정의 하고
+	// 여기서는 전체 창 크기에 맞게 설정되어 있습니다.
+    
+	context->RSSetViewports(1, &vp);
+    // 렌더링 컨텍스트에 뷰포트를 설정하여 렌더링된 이미지가 화면에 올바르게 매핑되도록 합니다.
 
     //////////////////////////////////////////////////////////////
     // 셰이더 컴파일
@@ -472,8 +479,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
 	bd.ByteWidth = sizeof(vertices);// 버텍스 버퍼의 크기를 설정합니다. vertices 배열의 크기와 일치해야 합니다.
     bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;// 버텍스 버퍼로 사용할 수 있도록 바인드 플래그를 설정합니다.
 
-    D3D11_SUBRESOURCE_DATA initData = {};
-    initData.pSysMem = vertices;
+	D3D11_SUBRESOURCE_DATA initData = {};// 초기 데이터 구조체를 초기화합니다.
+	initData.pSysMem = vertices;// 정점 데이터를 초기 데이터로 설정하여 버텍스 버퍼에 업로드할 준비를 합니다.
 
 	device->CreateBuffer(&bd, &initData, &vertexBuffer);// 정점 데이터를 GPU에 업로드하여 사용할 수 있도록 버텍스 버퍼를 생성합니다.
 
@@ -494,8 +501,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
 
     MSG msg = {};
 
+    DeltaTime GameTimer;
+	const float targetFrameTime = 1.0f / 45.0f; // 60 FPS 목표 프레임 시간
+   
     while (game.isRunning)
     {
+		auto frameStartTime = std::chrono::steady_clock::now();
         if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))//메시지 큐에서 메시지 확인하고 처리.
         {
 			TranslateMessage(&msg);// 키보드 입력과 같은 메시지를 번역하여 WM_CHAR 메시지로 변환합니다.
@@ -504,11 +515,20 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
 
         else
         {
+			float dt = GameTimer.GetDeltaTime();
+     
             ProcessInput(&game);
             Update(&game);
-            Render(&game, vertexCount);
+            Render(&game, vertexCount,dt);
 
-            Sleep(50);
+            auto frameEnd = std::chrono::steady_clock::now();
+            float timeUsed = std::chrono::duration<float>(frameEnd - frameStartTime).count();
+            float sleepTime = targetFrameTime - timeUsed;
+
+            if (sleepTime > 0)
+            {
+                Sleep((DWORD)(sleepTime * 1000.0f));
+            }
 		}// 게임이 실행 중인 동안 메시지를 처리하고, 입력을 처리하고, 게임 상태를 업데이트하며, 화면을 렌더링하는 루프
     }
     if (vsBlob) vsBlob->Release();
