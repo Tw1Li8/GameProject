@@ -18,14 +18,17 @@
 
 struct GameContext
 {
-    int playerPos;
+    float posX;      // 플레이어 X 좌표 (-1.0 ~ 1.0 범위 권장)
+    float posY;      // 플레이어 Y 좌표 (-1.0 ~ 1.0 범위 권장)
     int isRunning;
 
     int keyLeft;
     int keyRight;
+    int keyUp;       // 상단 입력 추가
+    int keyDown;     // 하단 입력 추가
 }; // 플레이어의 위치, 게임이 실행 중인지 여부, 왼쪽 및 오른쪽 키 입력 상태를 저장하는 구조체입니다.
 
-GameContext game = { 5,1,0,0 };// 기본값으로 초기화 합니다
+GameContext game = { 0.0f, 0.0f, 1, 0, 0, 0, 0 }; // 게임 상태를 초기화 
 
 //////////////////////////////////////////////////////////////
 // 정점 구조체
@@ -103,13 +106,20 @@ void ProcessInput(GameContext* ctx)
 // Update
 //////////////////////////////////////////////////////////////
 
-void Update(GameContext* ctx)
+void Update(GameContext* ctx, float dt)
 {
-    if (ctx->keyLeft) ctx->playerPos--;
-    if (ctx->keyRight) ctx->playerPos++;
+    float moveSpeed = 1.5f; // 초당 이동 속도
 
-    if (ctx->playerPos < 0) ctx->playerPos = 0;
-    if (ctx->playerPos > 10) ctx->playerPos = 10;
+    if (ctx->keyLeft)  ctx->posX -= moveSpeed * dt;
+    if (ctx->keyRight) ctx->posX += moveSpeed * dt;
+    if (ctx->keyUp)    ctx->posY += moveSpeed * dt;
+    if (ctx->keyDown)  ctx->posY -= moveSpeed * dt;
+
+    // 화면 경계 제한 (DirectX NDC 좌표계 기준 -1.0 ~ 1.0)
+    if (ctx->posX < -1.0f) ctx->posX = -1.0f;
+    if (ctx->posX > 1.0f)  ctx->posX = 1.0f;
+    if (ctx->posY < -1.0f) ctx->posY = -1.0f;
+    if (ctx->posY > 1.0f)  ctx->posY = 1.0f;
 }
 
 //////////////////////////////////////////////////////////////
@@ -129,24 +139,15 @@ void MoveConsoleCursor()
     );
 } //system("cls"); 때문에 게속 플리커 문제가 생겨서 콘솔 커서를 (0,0) 위치로 이동시키는 함수로 대체했습니다.
 
+
 void Render(GameContext* ctx, int vertexCount, float dt) 
 {
     MoveConsoleCursor();
 
     printf("========== GAME SCREEN ==========\n");
-    printf(" Player Position: %d\n", ctx->playerPos);
-    printf(" [");
-
-    for (int i = 0; i <= 10; i++)
-    {
-        if (i == ctx->playerPos)
-            printf("P");
-        else
-            printf("_");
-    }
-
-    printf("]\n");
+    printf("[ Player Position: X(%.2f), Y(%.2f) ]\n", ctx->posX, ctx->posY);
 	printf("A : Left_Move , D : Right_Move , Q : Game_Set \n");
+	printf("W : Up_Move , S : Down_Move \n");
     printf("FPS : %.1f, (DT : %.4f)\n",1.0f/dt,dt);
 
     printf("==============================================\n");
@@ -165,19 +166,15 @@ void Render(GameContext* ctx, int vertexCount, float dt)
     UINT offset = 0; 
     // 정점 버퍼에서 데이터를 읽기 시작할 위치를 나타내는 변수입니다. 일반적으로 0으로 설정됩니다.
 
+
     context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
 
     context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     context->VSSetShader(vs, nullptr, 0);
     context->PSSetShader(ps, nullptr, 0);
-
-	float playerX = (ctx->playerPos - 5) * 0.15f;// P(플레이어)의 X 위치를 계산합니다. playerPos 값에 따라 -0.75에서 0.75 사이의 값을 가지게 됩니다.
-
-    XMMATRIX translation =
-		XMMatrixTranslation(playerX, 0, 0); 
-    // XMMATRIX 타입의 translation 행렬을 생성하여 플레이어의 X 위치에 따라 정점을 이동시킵니다. 
-	// 좌우로만 움직이기 때문에 Y와 Z 위치는 0으로 유지
+    
+    XMMATRIX translation = XMMatrixTranslation(ctx->posX, ctx->posY, 0.0f);
 
     ConstantBuffer cb;
     cb.world = XMMatrixTranspose(translation);
@@ -203,20 +200,18 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
 
     case WM_KEYDOWN:
-
-		if (wParam == VK_LEFT || wParam == 'A') game.keyLeft = 1;
+        if (wParam == VK_LEFT || wParam == 'A') game.keyLeft = 1;
         if (wParam == VK_RIGHT || wParam == 'D') game.keyRight = 1;
-
-        if (wParam == 'Q')
-            game.isRunning = 0;
-
+        if (wParam == VK_UP || wParam == 'W') game.keyUp = 1;    // 추가
+        if (wParam == VK_DOWN || wParam == 'S') game.keyDown = 1;  // 추가
+        if (wParam == 'Q') game.isRunning = 0;
         break;
 
     case WM_KEYUP:
-
         if (wParam == VK_LEFT || wParam == 'A') game.keyLeft = 0;
         if (wParam == VK_RIGHT || wParam == 'D') game.keyRight = 0;
-
+        if (wParam == VK_UP || wParam == 'W') game.keyUp = 0;    // 추가
+        if (wParam == VK_DOWN || wParam == 'S') game.keyDown = 0;  // 추가
         break;
 
     case WM_DESTROY:
@@ -518,7 +513,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow)
 			float dt = GameTimer.GetDeltaTime();
      
             ProcessInput(&game);
-            Update(&game);
+            Update(&game,dt);
             Render(&game, vertexCount,dt);
 
             auto frameEnd = std::chrono::steady_clock::now();
